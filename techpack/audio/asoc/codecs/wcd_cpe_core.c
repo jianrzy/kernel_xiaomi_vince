@@ -18,7 +18,6 @@
 #include <linux/wait.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
-#include <linux/pm_qos.h>
 #include <linux/dma-mapping.h>
 #include <sound/soc.h>
 #include <sound/info.h>
@@ -1012,13 +1011,6 @@ static void wcd_cpe_ssr_work(struct work_struct *work)
 		return;
 	}
 
-	/* Obtain pm request up in case of suspend mode */
-	pm_qos_add_request(&core->pm_qos_req,
-			   PM_QOS_CPU_DMA_LATENCY,
-			   PM_QOS_DEFAULT_VALUE);
-	pm_qos_update_request(&core->pm_qos_req,
-			msm_cpuidle_get_deep_idle_latency());
-
 	dev_dbg(core->dev,
 		"%s: CPE SSR with event %d\n",
 		__func__, core->ssr_type);
@@ -1053,7 +1045,6 @@ static void wcd_cpe_ssr_work(struct work_struct *work)
 			dev_err(core->dev,
 				"%s: wait for cpe offline timed out\n",
 				__func__);
-			goto err_ret;
 		}
 		if (core->ssr_type != WCD_CPE_BUS_DOWN_EVENT) {
 			wcd_cpe_get_sfr_dump(core);
@@ -1079,7 +1070,6 @@ static void wcd_cpe_ssr_work(struct work_struct *work)
 		dev_err(core->dev,
 			"%s: ready to online timed out, status = %u\n",
 			__func__, core->ready_status);
-		goto err_ret;
 	}
 
 	rc = wcd_cpe_boot_ssr(core);
@@ -1090,12 +1080,6 @@ static void wcd_cpe_ssr_work(struct work_struct *work)
 	if (CPE_ERR_IRQ_CB(core))
 		core->cpe_cdc_cb->cpe_err_irq_control(core->codec,
 					CPE_ERR_IRQ_CLEAR, NULL);
-
-err_ret:
-	/* remove after default pm qos */
-	pm_qos_update_request(&core->pm_qos_req,
-			      PM_QOS_DEFAULT_VALUE);
-	pm_qos_remove_request(&core->pm_qos_req);
 }
 
 /*
@@ -1978,8 +1962,8 @@ struct wcd_cpe_core *wcd_cpe_init(const char *img_fname,
 	}
 
 	card = codec->component.card->snd_card;
-	snprintf(proc_name, WCD_CPE_STATE_MAX_LEN,
-		 "%s%d%s", cpe_name, id, state_name);
+	snprintf(proc_name, (sizeof("cpe") + sizeof("_state") +
+		 sizeof(id) - 2), "%s%d%s", cpe_name, id, state_name);
 	entry = snd_info_create_card_entry(card, proc_name,
 					   card->proc_root);
 	if (entry) {
@@ -2396,7 +2380,7 @@ static int wcd_cpe_cmd_lsm_open_tx_v2(
 	cmd_open_tx_v2.topology_id = lsm_top->topology;
 	ret = wcd_cpe_cmi_send_lsm_msg(core, session, &cmd_open_tx_v2);
 	if (ret)
-		dev_dbg(core->dev,
+		dev_err(core->dev,
 			"%s: failed to send open_tx_v2 cmd, err = %d\n",
 			__func__, ret);
 	else
