@@ -30,7 +30,7 @@ REGENERATE_DEFCONFIG="false" # unset if don't want to regenerate defconfig
 # Costumize
 KERNEL="AL-Kernel"
 DEVICE="Vince"
-KERNELTYPE="R1"
+KERNELTYPE="R11"
 KERNELNAME="${KERNEL}-${DEVICE}-${KERNELTYPE}-$(TZ=Asia/Jakarta date +%y%m%d-%H%M)"
 TEMPZIPNAME="${KERNELNAME}.zip"
 ZIPNAME="${KERNELNAME}.zip"

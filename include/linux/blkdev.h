@@ -96,7 +96,7 @@ enum rq_cmd_type_bits {
 struct request {
 	struct list_head queuelist;
 	union {
-		struct call_single_data csd;
+		call_single_data_t csd;
 		u64 fifo_time;
 	};
 
@@ -1122,6 +1122,7 @@ struct blk_plug {
 	struct list_head cb_list; /* md requires an unplug callback */
 };
 #define BLK_MAX_REQUEST_COUNT 16
+#define BLK_PLUG_FLUSH_SIZE (128 * 1024)
 
 struct blk_plug_cb;
 typedef void (*blk_plug_cb_fn)(struct blk_plug_cb *, bool);
@@ -1496,42 +1497,33 @@ int kblockd_schedule_delayed_work(struct delayed_work *dwork, unsigned long dela
 int kblockd_schedule_delayed_work_on(int cpu, struct delayed_work *dwork, unsigned long delay);
 
 #ifdef CONFIG_BLK_CGROUP
-/*
- * This should not be using sched_clock(). A real patch is in progress
- * to fix this up, until that is in place we need to disable preemption
- * around sched_clock() in this function and set_io_start_time_ns().
- */
 static inline void set_start_time_ns(struct request *req)
 {
-	preempt_disable();
-	req->start_time_ns = sched_clock();
-	preempt_enable();
+	req->start_time_ns = ktime_get_ns();
 }
 
 static inline void set_io_start_time_ns(struct request *req)
 {
-	preempt_disable();
-	req->io_start_time_ns = sched_clock();
-	preempt_enable();
+	req->io_start_time_ns = ktime_get_ns();
 }
 
-static inline uint64_t rq_start_time_ns(struct request *req)
+static inline u64 rq_start_time_ns(struct request *req)
 {
         return req->start_time_ns;
 }
 
-static inline uint64_t rq_io_start_time_ns(struct request *req)
+static inline u64 rq_io_start_time_ns(struct request *req)
 {
         return req->io_start_time_ns;
 }
 #else
 static inline void set_start_time_ns(struct request *req) {}
 static inline void set_io_start_time_ns(struct request *req) {}
-static inline uint64_t rq_start_time_ns(struct request *req)
+static inline u64 rq_start_time_ns(struct request *req)
 {
 	return 0;
 }
-static inline uint64_t rq_io_start_time_ns(struct request *req)
+static inline u64 rq_io_start_time_ns(struct request *req)
 {
 	return 0;
 }
